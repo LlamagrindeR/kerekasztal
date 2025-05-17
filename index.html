@@ -133,7 +133,7 @@
                     rowCounter = 1; // Reset számláló betöltéskor
                     querySnapshot.forEach((doc) => {
                         const data = doc.data();
-                        addRowToTable(data, doc.id, rowCounter++);
+                        addRowToTable(data, doc.id, data.sorszam); // A sorszámot a Firestore-ból olvassuk
                     });
                     updateRangsorTable();
                 })
@@ -224,11 +224,11 @@
 
         function addRow() {
             const newRowData = {
-                sorszam: rowCounter, // Új sorszám hozzáadása
                 name: defaultNames[defaultNameIndex % defaultNames.length],
                 artist: '',
                 album: '',
-                ratings: Array(allNames.length).fill('')
+                ratings: Array(allNames.length).fill(''),
+                sorszam: rowCounter // Hozzáadjuk a sorszámot az új adatokhoz
             };
             db.collection("ratings").add(newRowData) // Firestore automatikusan generál egy ID-t
                 .then((docRef) => {
