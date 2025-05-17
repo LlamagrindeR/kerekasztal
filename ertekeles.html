@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kerekasztal Rating</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .add-row-button, .tab-button {
+            margin-top: 10px;
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+        .delete-button {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .name-select, .rating-input {
+            padding: 5px;
+        }
+        .tab-content {
+            display: none; /* Kezdetben rejtett */
+            margin-top: 20px;
+        }
+        .tab-content.active {
+            display: block; /* Aktív fül tartalma látható */
+        }
+        .tabs {
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Kerekasztal Rating</h1>
+
+    <div class="tabs">
+        <button class="tab-button active" onclick="openTab('rating')">Rating</button>
+        <button class="tab-button" onclick="openTab('rangsor')">Rangsor</button>
+    </div>
+
+    <div id="rating" class="tab-content active">
+        <h2>Értékelések</h2>
+        <table id="ratingTable">
+            <thead>
+                <tr>
+                    <th>Név</th>
+                    <th>Előadó</th>
+                    <th>Albumcím</th>
+                    <th>Átlag</th>
+                    <th>Bálint</th>
+                    <th>Szabber</th>
+                    <th>Ivanics</th>
+                    <th>Rásó</th>
+                    <th>Bakos</th>
+                    <th>Gaben</th>
+                    <th>Kolos</th>
+                    <th>Műveletek</th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>
+        </table>
+        <button class="add-row-button" onclick="addRow()">Új sor hozzáadása</button>
+    </div>
+
+    <div id="rangsor" class="tab-content">
+        <h2>Album Rangsor</h2>
+        <table id="rangsorTable">
+            <thead>
+                <tr>
+                    <th>Helyezés</th>
+                    <th>Albumcím</th>
+                    <th>Átlagpontszám</th>
+                </tr>
+            </thead>
+            <tbody id="rangsorTableBody">
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const ratingTable = document.getElementById('ratingTable').getElementsByTagName('tbody')[0];
+        const rangsorTableBody = document.getElementById('rangsorTableBody');
+        const defaultNames = ['Bálint', 'Szabber', 'Ivanics', 'Rásó', 'Bakos', 'Gaben'];
+        const allNames = [...defaultNames, 'Kolos'];
+        const nameColors = {
+            'Bálint': '#F4B084',
+            'Szabber': '#9BC2E6',
+            'Ivanics': '#A9D08E',
+            'Rásó': '#8EA9DB',
+            'Bakos': '#FFD966',
+            'Gaben': '#C9C9C9',
+            'Kolos': '#C00000'
+        };
+        let defaultNameIndex = 0;
+
+        function openTab(tabId) {
+            const tabContents = document.querySelectorAll('.tab-content');
+            const tabButtons = document.querySelectorAll('.tab-button');
+            tabContents.forEach(content => content.classList.remove('active'));
+            tabButtons.forEach(button => button.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`.tab-button[onclick="openTab('${tabId}')"]`).classList.add('active');
+            if (tabId === 'rangsor') {
+                updateRangsorTable();
+            }
+        }
+
+        function addRow() {
+            const newRow = ratingTable.insertRow();
+            const cells = [];
+            for (let i = 0; i < 12; i++) {
+                cells.push(newRow.insertCell());
+            }
+            cells[3].textContent = ''; // Átlag cella
+
+            // Név legördülő menü
+            const nameSelect = document.createElement('select');
+            nameSelect.classList.add('name-select');
+            defaultNames.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                nameSelect.appendChild(option);
+            });
+            const kolosOption = document.createElement('option');
+            kolosOption.value = 'Kolos';
+            kolosOption.textContent = 'Kolos';
+            nameSelect.appendChild(kolosOption);
+            nameSelect.value = defaultNames[defaultNameIndex % defaultNames.length];
+            nameSelect.addEventListener('change', function() {
+                applyRowColor(newRow);
+                updateRangsorTable();
+            });
+            cells[0].appendChild(nameSelect);
+
+            cells[1].innerHTML = '<input type="text">';
+            cells[2].innerHTML = '<input type="text">';
+
+            // Értékelési oszlopok
+            for (let i = 0; i < allNames.length; i++) {
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.min = '1';
+                input.max = '10';
+                input.step = '0.5';
+                input.classList.add('rating-input');
+                input.addEventListener('change', () => {
+                    calculateAverage(newRow);
+                    updateRangsorTable();
+                });
+                cells[i + 4].appendChild(input);
+            }
+
+            cells[11].innerHTML = '<button class="delete-button" onclick="deleteRow(this)">Törlés</button>';
+
+            applyRowColor(newRow);
+            calculateAverage(newRow);
+            defaultNameIndex++;
+        }
+
+        function deleteRow(button) {
+            const row = button.parentNode.parentNode;
+            row.remove();
+            updateRangsorTable();
+        }
+
+        function applyRowColor(row) {
+            const nameCell = row.cells[0].querySelector('select');
+            if (nameCell && nameCell.value) {
+                const name = nameCell.value;
+                for (let i = 0; i <= 2; i++) {
+                    if (row.cells[i]) {
+                        row.cells[i].style.backgroundColor = nameColors[name] || '';
+                    }
+                }
+                for (let i = 4; i < row.cells.length; i++) {
+                    if (row.cells[i]) {
+                        row.cells[i].style.backgroundColor = '';
+                    }
+                }
+                row.cells[3].style.backgroundColor = '';
+            } else {
+                for (let i = 0; i <= 2; i++) {
+                    if (row.cells[i]) {
+                        row.cells[i].style.backgroundColor = '';
+                    }
+                }
+                row.cells[3].style.backgroundColor = '';
+            }
+        }
+
+        function calculateAverage(row) {
+            let sum = 0;
+            let count = 0;
+            for (let i = 4; i < row.cells.length - 1; i++) {
+                const input = row.cells[i].querySelector('input[type="number"]');
+                if (input && input.value !== '') {
+                    sum += parseFloat(input.value);
+                    count++;
+                }
+            }
+            const averageCell = row.cells[3];
+            averageCell.textContent = count > 0 ? (sum / count).toFixed(2) : '';
+        }
+
+        function updateRangsorTable() {
+            const albumRatings = {};
+            for (let i = 0; i < ratingTable.rows.length; i++) {
+                const row = ratingTable.rows[i];
+                const albumTitleInput = row.cells[2].querySelector('input[type="text"]');
+                const averageCell = row.cells[3];
+                if (albumTitleInput && albumTitleInput.value && averageCell.textContent) {
+                    const albumTitle = albumTitleInput.value;
+                    const averageScore = parseFloat(averageCell.textContent);
+                    albumRatings[albumTitle] = albumRatings[albumTitle] || [];
+                    albumRatings[albumTitle].push(averageScore);
+                }
+            }
+
+            const albumAverages = [];
+            for (const album in albumRatings) {
+                const sum = albumRatings[album].reduce((a, b) => a + b, 0);
+                const avg = sum / albumRatings[album].length;
+                albumAverages.push({ title: album, average: avg });
+            }
+
+            albumAverages.sort((a, b) => b.average - a.average);
+
+            rangsorTableBody.innerHTML = '';
+            albumAverages.forEach((album, index) => {
+                const newRow = rangsorTableBody.insertRow();
+                const rankCell = newRow.insertCell();
+                const titleCell = newRow.insertCell();
+                const averageCell = newRow.insertCell();
+                rankCell.textContent = index + 1;
+                titleCell.textContent = album.title;
+                averageCell.textContent = album.average.toFixed(2);
+            });
+        }
+
+        // Kezdetben a 'rating' fül legyen aktív
+        openTab('rating');
+    </script>
+
+</body>
+</html>
