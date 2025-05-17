@@ -112,13 +112,33 @@
         let defaultNameIndex = 0;
 
         function openTab(tabId) {
+            console.log('openTab függvény meghívva ezzel az ID-vel:', tabId);
             const tabContents = document.querySelectorAll('.tab-content');
             const tabButtons = document.querySelectorAll('.tab-button');
-            tabContents.forEach(content => content.classList.remove('active'));
-            tabButtons.forEach(button => button.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            document.querySelector(`.tab-button[onclick="openTab('${tabId}')"]`).classList.add('active');
+            console.log('tabContents:', tabContents);
+            console.log('tabButtons:', tabButtons);
+            tabContents.forEach(content => {
+                content.classList.remove('active');
+                console.log('Eltávolítva az active class innen:', content);
+            });
+            tabButtons.forEach(button => {
+                button.classList.remove('active');
+                console.log('Eltávolítva az active class innen:', button);
+            });
+            const targetTab = document.getElementById(tabId);
+            const targetButton = document.querySelector(`.tab-button[onclick="openTab('${tabId}')"]`);
+            console.log('Cél tab elem:', targetTab);
+            console.log('Cél gomb elem:', targetButton);
+            if (targetTab) {
+                targetTab.classList.add('active');
+                console.log('Hozzáadva az active class ide:', targetTab);
+            }
+            if (targetButton) {
+                targetButton.classList.add('active');
+                console.log('Hozzáadva az active class ide:', targetButton);
+            }
             if (tabId === 'rangsor') {
+                console.log('Rangsor fülre váltás - updateRangsorTable meghívása');
                 updateRangsorTable();
             }
         }
@@ -218,32 +238,44 @@
         }
 
         function addRow() {
+            console.log('addRow függvény meghívva');
             const newRowData = {
                 name: defaultNames[defaultNameIndex % defaultNames.length],
                 artist: '',
                 album: '',
                 ratings: Array(allNames.length).fill('')
             };
+            console.log('Létrehozott új sor adat:', newRowData);
             db.collection("ratings").add(newRowData) // Firestore automatikusan generál egy ID-t
                 .then((docRef) => {
-                    console.log("Dokumentum ID: ", docRef.id);
+                    console.log("Firestore dokumentum ID: ", docRef.id);
                     addRowToTable(newRowData, docRef.id);
                 })
                 .catch((error) => {
                     console.error("Hiba történt a Firestore-ba mentéskor: ", error);
                 });
             defaultNameIndex++;
+            console.log('defaultNameIndex növelve:', defaultNameIndex);
         }
 
         function deleteRow(button) {
+            console.log('deleteRow függvény meghívva ezzel a gombbal:', button);
             const row = button.parentNode.parentNode;
+            console.log('Törlendő sor:', row);
             const docId = row.dataset.docId;
+            console.log('Törlendő dokumentum ID:', docId);
             if (docId) {
-                deleteDataFromFirestore(docId).then(() => {
-                    row.remove();
-                    updateRangsorTable();
-                });
+                db.collection("ratings").doc(docId).delete()
+                    .then(() => {
+                        console.log(`A(z) ${docId} ID-jű értékelés sikeresen törölve!`);
+                        row.remove();
+                        updateRangsorTable();
+                    })
+                    .catch((error) => {
+                        console.error("Hiba történt a Firestore-ból törléskor: ", error);
+                    });
             } else {
+                console.log('A sorhoz nem tartozik docId, csak a táblázatból távolítjuk el.');
                 row.remove();
                 updateRangsorTable();
             }
