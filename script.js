@@ -1,4 +1,5 @@
-import { db } from './firebase.js'; // Importáld a db objektumot a firebase.js-ből
+// script.js
+import { db } from './firebase.js';
 
 const ratingTableBody = document.getElementById('ratingTableBody');
 const rangsorTableBodyRangsor = document.getElementById('rangsorTableBodyRangsor');
@@ -14,6 +15,7 @@ const nameColors = {
     'Kolos': '#C00000'
 };
 let defaultNameIndex = 0;
+let rowCounter = 1;
 
 window.openTab = function(tabId) {
     console.log('openTab függvény meghívva ezzel az ID-vel:', tabId);
@@ -50,16 +52,17 @@ window.openTab = function(tabId) {
 window.addRow = function() {
     console.log('addRow függvény meghívva');
     const newRowData = {
+        sorszam: rowCounter,
         name: defaultNames[defaultNameIndex % defaultNames.length],
         artist: '',
         album: '',
         ratings: Array(allNames.length).fill('')
     };
     console.log('Létrehozott új sor adat:', newRowData);
-    db.collection("ratings").add(newRowData) // Firestore automatikusan generál egy ID-t
+    db.collection("ratings").add(newRowData)
         .then((docRef) => {
             console.log("Firestore dokumentum ID: ", docRef.id);
-            addRowToTable(newRowData, docRef.id);
+            addRowToTable(newRowData, docRef.id, rowCounter++);
         })
         .catch((error) => {
             console.error("Hiba történt a Firestore-ba mentéskor: ", error);
@@ -93,11 +96,13 @@ window.deleteRow = function(button) {
 
 function loadDataFromFirestore() {
     ratingTableBody.innerHTML = '';
-    db.collection("ratings").get()
+    db.collection("ratings").orderBy('sorszam')
+        .get()
         .then((querySnapshot) => {
+            rowCounter = 1;
             querySnapshot.forEach((doc) => {
                 const data = doc.data();
-                addRowToTable(data, doc.id);
+                addRowToTable(data, doc.id, data.sorszam);
             });
             updateRangsorTable();
         })
@@ -116,14 +121,15 @@ function saveDataToFirestore(rowData, docId) {
         });
 }
 
-function addRowToTable(rowData, docId) {
+function addRowToTable(rowData, docId, sorszam) {
     const newRow = ratingTableBody.insertRow();
     newRow.dataset.docId = docId;
     const cells = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 13; i++) {
         cells.push(newRow.insertCell());
     }
-    cells[3].textContent = rowData.average || '';
+    cells[0].textContent = sorszam;
+    cells[4].textContent = rowData.average || '';
 
     const nameSelect = document.createElement('select');
     nameSelect.classList.add('name-select');
@@ -142,11 +148,11 @@ function addRowToTable(rowData, docId) {
         applyRowColor(newRow);
         updateRowData(newRow, docId);
     });
-    cells[0].appendChild(nameSelect);
+    cells[1].appendChild(nameSelect);
 
-    cells[1].innerHTML = `<input type="text" value="${rowData.artist || ''}">`;
-    cells[2].innerHTML = `<input type="text" value="${rowData.album || ''}">`;
-    cells[2].querySelector('input').addEventListener('change', () => updateRowData(newRow, docId));
+    cells[2].innerHTML = `<input type="text" value="${rowData.artist || ''}">`;
+    cells[3].innerHTML = `<input type="text" value="${rowData.album || ''}">`;
+    cells[3].querySelector('input').addEventListener('change', () => updateRowData(newRow, docId));
 
     for (let i = 0; i < allNames.length; i++) {
         const input = document.createElement('input');
@@ -160,14 +166,14 @@ function addRowToTable(rowData, docId) {
             calculateAverage(newRow);
             updateRowData(newRow, docId);
         });
-        cells[i + 4].appendChild(input);
+        cells[i + 5].appendChild(input);
     }
 
     const deleteButton = document.createElement('button');
     deleteButton.classList.add('delete-button');
     deleteButton.textContent = 'Törlés';
     deleteButton.addEventListener('click', () => window.deleteRow(deleteButton));
-    cells[11].appendChild(deleteButton);
+    cells[12].appendChild(deleteButton);
 
     applyRowColor(newRow);
     calculateAverage(newRow);
@@ -175,62 +181,63 @@ function addRowToTable(rowData, docId) {
 }
 
 function updateRowData(row, docId) {
-    const nameSelect = row.cells[0].querySelector('select');
-    const artistInput = row.cells[1].querySelector('input');
-    const albumInput = row.cells[2].querySelector('input');
+    const nameSelect = row.cells[1].querySelector('select');
+    const artistInput = row.cells[2].querySelector('input');
+    const albumInput = row.cells[3].querySelector('input');
     const ratings = [];
-    for (let i = 4; i < row.cells.length - 1; i++) {
+    for (let i = 5; i < row.cells.length - 1; i++) {
         const input = row.cells[i].querySelector('input[type="number"]');
         ratings.push(input ? input.value : '');
     }
 
     const rowData = {
+        sorszam: parseInt(row.cells[0].textContent),
         name: nameSelect.value,
         artist: artistInput.value,
         album: albumInput.value,
         ratings: ratings,
-        average: parseFloat(row.cells[3].textContent) || ''
+        average: parseFloat(row.cells[4].textContent) || ''
     };
 
     saveDataToFirestore(rowData, docId);
 }
 
 function applyRowColor(row) {
-    const nameCell = row.cells[0].querySelector('select');
+    const nameCell = row.cells[1].querySelector('select');
     if (nameCell && nameCell.value) {
         const name = nameCell.value;
-        for (let i = 0; i <= 2; i++) {
+        for (let i = 1; i <= 3; i++) {
             if (row.cells[i]) {
                 row.cells[i].style.backgroundColor = nameColors[name] || '';
             }
         }
-        for (let i = 4; i < row.cells.length; i++) {
+        for (let i = 5; i < row.cells.length; i++) {
             if (row.cells[i]) {
                 row.cells[i].style.backgroundColor = '';
             }
         }
-        row.cells[3].style.backgroundColor = '';
+        row.cells[4].style.backgroundColor = '';
     } else {
-        for (let i = 0; i <= 2; i++) {
+        for (let i = 1; i <= 3; i++) {
             if (row.cells[i]) {
                 row.cells[i].style.backgroundColor = '';
             }
         }
-        row.cells[3].style.backgroundColor = '';
+        row.cells[4].style.backgroundColor = '';
     }
 }
 
 function calculateAverage(row) {
     let sum = 0;
     let count = 0;
-    for (let i = 4; i < row.cells.length - 1; i++) {
+    for (let i = 5; i < row.cells.length - 1; i++) {
         const input = row.cells[i].querySelector('input[type="number"]');
         if (input && input.value !== '') {
             sum += parseFloat(input.value);
             count++;
         }
     }
-    const averageCell = row.cells[3];
+    const averageCell = row.cells[4];
     averageCell.textContent = count > 0 ? (sum / count).toFixed(2) : '';
 }
 
@@ -238,8 +245,8 @@ function updateRangsorTable() {
     const albumRatings = {};
     for (let i = 0; i < ratingTableBody.rows.length; i++) {
         const row = ratingTableBody.rows[i];
-        const albumTitleInput = row.cells[2].querySelector('input[type="text"]');
-        const averageCell = row.cells[3];
+        const albumTitleInput = row.cells[3].querySelector('input[type="text"]');
+        const averageCell = row.cells[4];
         if (albumTitleInput && albumTitleInput.value && averageCell.textContent) {
             const albumTitle = albumTitleInput.value;
             const averageScore = parseFloat(averageCell.textContent);
