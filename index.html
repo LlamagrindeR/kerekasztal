@@ -58,7 +58,6 @@
         <table id="ratingTable">
             <thead>
                 <tr>
-                    <th>#</th>
                     <th>Név</th>
                     <th>Előadó</th>
                     <th>Albumcím</th>
@@ -111,7 +110,6 @@
             'Kolos': '#C00000'
         };
         let defaultNameIndex = 0;
-        let rowCounter = 1; // Sorszám számláló
 
         function openTab(tabId) {
             const tabContents = document.querySelectorAll('.tab-content');
@@ -127,13 +125,11 @@
 
         function loadDataFromFirestore() {
             ratingTableBody.innerHTML = ''; // Táblázat ürítése betöltés előtt
-            db.collection("ratings").orderBy('sorszam') // Rendezés a 'sorszam' mező szerint
-                .get()
+            db.collection("ratings").get()
                 .then((querySnapshot) => {
-                    rowCounter = 1; // Reset számláló betöltéskor
                     querySnapshot.forEach((doc) => {
                         const data = doc.data();
-                        addRowToTable(data, doc.id, data.sorszam); // A sorszámot a Firestore-ból olvassuk
+                        addRowToTable(data, doc.id);
                     });
                     updateRangsorTable();
                 })
@@ -161,15 +157,14 @@
                 });
         }
 
-        function addRowToTable(rowData, docId, sorszam) {
+        function addRowToTable(rowData, docId) {
             const newRow = ratingTableBody.insertRow();
             newRow.dataset.docId = docId; // Tároljuk a dokumentum ID-t a sorban
             const cells = [];
-            for (let i = 0; i < 13; i++) {
+            for (let i = 0; i < 12; i++) {
                 cells.push(newRow.insertCell());
             }
-            cells[0].textContent = sorszam; // Sorszám cella
-            cells[4].textContent = rowData.average || ''; // Átlag cella
+            cells[3].textContent = rowData.average || ''; // Átlag cella
 
             // Név legördülő menü
             const nameSelect = document.createElement('select');
@@ -189,11 +184,11 @@
                 applyRowColor(newRow);
                 updateRowData(newRow, docId);
             });
-            cells[1].appendChild(nameSelect);
+            cells[0].appendChild(nameSelect);
 
-            cells[2].innerHTML = `<input type="text" value="${rowData.artist || ''}">`;
-            cells[3].innerHTML = `<input type="text" value="${rowData.album || ''}">`;
-            cells[3].querySelector('input').addEventListener('change', () => updateRowData(newRow, docId));
+            cells[1].innerHTML = `<input type="text" value="${rowData.artist || ''}">`;
+            cells[2].innerHTML = `<input type="text" value="${rowData.album || ''}">`;
+            cells[2].querySelector('input').addEventListener('change', () => updateRowData(newRow, docId));
 
             // Értékelési oszlopok
             for (let i = 0; i < allNames.length; i++) {
@@ -208,14 +203,14 @@
                     calculateAverage(newRow);
                     updateRowData(newRow, docId);
                 });
-                cells[i + 5].appendChild(input);
+                cells[i + 4].appendChild(input);
             }
 
             const deleteButton = document.createElement('button');
             deleteButton.classList.add('delete-button');
             deleteButton.textContent = 'Törlés';
             deleteButton.addEventListener('click', () => deleteRow(deleteButton));
-            cells[12].appendChild(deleteButton);
+            cells[11].appendChild(deleteButton);
 
             applyRowColor(newRow);
             calculateAverage(newRow);
@@ -227,13 +222,12 @@
                 name: defaultNames[defaultNameIndex % defaultNames.length],
                 artist: '',
                 album: '',
-                ratings: Array(allNames.length).fill(''),
-                sorszam: rowCounter // Hozzáadjuk a sorszámot az új adatokhoz
+                ratings: Array(allNames.length).fill('')
             };
             db.collection("ratings").add(newRowData) // Firestore automatikusan generál egy ID-t
                 .then((docRef) => {
                     console.log("Dokumentum ID: ", docRef.id);
-                    addRowToTable(newRowData, docRef.id, rowCounter++);
+                    addRowToTable(newRowData, docRef.id);
                 })
                 .catch((error) => {
                     console.error("Hiba történt a Firestore-ba mentéskor: ", error);
@@ -248,73 +242,70 @@
                 deleteDataFromFirestore(docId).then(() => {
                     row.remove();
                     updateRangsorTable();
-                    loadDataFromFirestore(); // Újratöltjük az adatokat a sorszám szerinti sorrendhez
                 });
             } else {
                 row.remove();
                 updateRangsorTable();
-                loadDataFromFirestore(); // Újratöltjük az adatokat a sorszám szerinti sorrendhez
             }
         }
 
         function updateRowData(row, docId) {
-            const nameSelect = row.cells[1].querySelector('select');
-            const artistInput = row.cells[2].querySelector('input');
-            const albumInput = row.cells[3].querySelector('input');
+            const nameSelect = row.cells[0].querySelector('select');
+            const artistInput = row.cells[1].querySelector('input');
+            const albumInput = row.cells[2].querySelector('input');
             const ratings = [];
-            for (let i = 5; i < row.cells.length - 1; i++) {
+            for (let i = 4; i < row.cells.length - 1; i++) {
                 const input = row.cells[i].querySelector('input[type="number"]');
                 ratings.push(input ? input.value : '');
             }
 
             const rowData = {
-                sorszam: parseInt(row.cells[0].textContent), // Megtartjuk a sorszámot
                 name: nameSelect.value,
                 artist: artistInput.value,
                 album: albumInput.value,
                 ratings: ratings,
-                average: parseFloat(row.cells[4].textContent) || ''
+                average: parseFloat(row.cells[3].textContent) || ''
             };
 
             saveDataToFirestore(rowData, docId);
         }
 
         function applyRowColor(row) {
-            const nameCell = row.cells[1].querySelector('select');
+            const nameCell = row.cells[0].querySelector('select');
             if (nameCell && nameCell.value) {
                 const name = nameCell.value;
-                for (let i = 1; i <= 3; i++) {
+                for (let i = 0; i <= 2; i++) {
                     if (row.cells[i]) {
                         row.cells[i].style.backgroundColor = nameColors[name] || '';
                     }
                 }
-                for (let i = 5; i < row.cells.length; i++) {
+                for (let i = 4; i < row.cells.length; i++) {
                     if (row.cells[i]) {
                         row.cells[i].style.backgroundColor = '';
                     }
                 }
-                row.cells[4].style.backgroundColor = '';
+                row.cells[3].style.backgroundColor = '';
             } else {
-                for (let i = 1; i <= 3; i++) {
+                for (let i = 0; i <= 2; i++) {
                     if (row.cells[i]) {
                         row.cells[i].style.backgroundColor = '';
                     }
                 }
-                row.cells[4].style.backgroundColor = '';
+                row.cells[3].style.backgroundColor = '';
             }
         }
 
         function calculateAverage(row) {
             let sum = 0;
             let count = 0;
-            for (let i = 5; i < row.cells.length - 1; i++) {
+            for (let i = 4; i < row.cells.length - 1; i++) {
                 const input = row.cells[i].querySelector('input[type="number"]');
                 if (input && input.value !== '') {
                     sum += parseFloat(input.value);
                     count++;
                 }
             }
-            const averageCell = row.cells[4];
+            const averageCell = row.cells[3];
             averageCell.textContent = count > 0 ? (sum / count).toFixed(2) : '';
         }
 
@@ -322,8 +313,8 @@
             const albumRatings = {};
             for (let i = 0; i < ratingTableBody.rows.length; i++) {
                 const row = ratingTableBody.rows[i];
-                const albumTitleInput = row.cells[3].querySelector('input[type="text"]');
-                const averageCell = row.cells[4];
+                const albumTitleInput = row.cells[2].querySelector('input[type="text"]');
+                const averageCell = row.cells[3];
                 if (albumTitleInput && albumTitleInput.value && averageCell.textContent) {
                     const albumTitle = albumTitleInput.value;
                     const averageScore = parseFloat(averageCell.textContent);
