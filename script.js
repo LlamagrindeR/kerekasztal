@@ -290,4 +290,17 @@ function updateRangsorTable() {
 
     albumAverages.sort((a, b) => b.average - a.average);
 
-    rangsor
+    rangsorTableBodyRangsor.innerHTML = '';
+    albumAverages.forEach((album, index) => {
+        const newRow = rangsorTableBodyRangsor.insertRow();
+        const rankCell = newRow.insertCell();
+        const titleCell = newRow.insertCell();
+        const averageCell = newRow.insertCell();
+        rankCell.textContent = index + 1;
+        titleCell.textContent = album.title;
+        averageCell.textContent = album.average.toFixed(2);
+    });
+}
+
+// Kezdetben az adatok betöltése
+loadDataFromFirestore();
