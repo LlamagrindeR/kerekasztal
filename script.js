@@ -94,6 +94,20 @@ window.deleteRow = function(button) {
     }
 };
 
+function colorizeHeader() {
+    const headerRow = document.querySelector('#ratingTable thead tr');
+    if (headerRow) {
+        allNames.forEach((name, index) => {
+            const columnIndex = index + 5; // Az első értékelő oszlop indexe
+            const headerCell = headerRow.querySelector(`th:nth-child(${columnIndex})`);
+            if (headerCell && nameColors[name]) {
+                headerCell.style.backgroundColor = nameColors[name];
+                headerCell.style.color = 'white';
+            }
+        });
+    }
+}
+
 function loadDataFromFirestore() {
     ratingTableBody.innerHTML = '';
     db.collection("ratings").orderBy('sorszam')
@@ -105,6 +119,7 @@ function loadDataFromFirestore() {
                 addRowToTable(data, doc.id, data.sorszam);
             });
             updateRangsorTable();
+            colorizeHeader();
         })
         .catch((error) => {
             console.error("Hiba történt az adatok lekérésekor a Firestore-ból: ", error);
@@ -151,8 +166,10 @@ function addRowToTable(rowData, docId, sorszam) {
     cells[1].appendChild(nameSelect);
 
     cells[2].innerHTML = `<input type="text" value="${rowData.artist || ''}">`;
+    cells[2].setAttribute('data-label', 'Előadó');
+
     cells[3].innerHTML = `<input type="text" value="${rowData.album || ''}">`;
-    cells[3].querySelector('input').addEventListener('change', () => updateRowData(newRow, docId));
+    cells[3].setAttribute('data-label', 'Albumcím');
 
     for (let i = 0; i < allNames.length; i++) {
         const input = document.createElement('input');
@@ -167,6 +184,7 @@ function addRowToTable(rowData, docId, sorszam) {
             updateRowData(newRow, docId);
         });
         cells[i + 5].appendChild(input);
+        cells[i + 5].setAttribute('data-label', allNames[i]);
     }
 
     const deleteButton = document.createElement('button');
@@ -174,10 +192,12 @@ function addRowToTable(rowData, docId, sorszam) {
     deleteButton.textContent = 'Törlés';
     deleteButton.addEventListener('click', () => window.deleteRow(deleteButton));
     cells[12].appendChild(deleteButton);
+    cells[12].setAttribute('data-label', 'Műveletek');
 
     applyRowColor(newRow);
     calculateAverage(newRow);
     defaultNameIndex++;
+    colorizeHeader();
 }
 
 function updateRowData(row, docId) {
@@ -202,28 +222,34 @@ function updateRowData(row, docId) {
     saveDataToFirestore(rowData, docId);
 }
 
+function getLighterColor(hex, factor) {
+    let c = hex.substring(1).split('');
+    if(c.length === 3){
+        c= [c[0], c[0], c[1], c[1], c[2], c[2]];
+    }
+    c = '0x'+c.join('');
+    return 'rgb('+[(c>>16)&255, (c>>8)&255, c&255].map(a=>Math.min(255, Math.floor(a + (255 - a) * factor))).join(',')+')';
+}
+
 function applyRowColor(row) {
     const nameCell = row.cells[1].querySelector('select');
     if (nameCell && nameCell.value) {
         const name = nameCell.value;
+        const color = nameColors[name] || '';
         for (let i = 1; i <= 3; i++) {
             if (row.cells[i]) {
-                row.cells[i].style.backgroundColor = nameColors[name] || '';
+                row.cells[i].style.backgroundColor = color;
             }
         }
-        for (let i = 5; i < row.cells.length; i++) {
+        for (let i = 4; i < row.cells.length; i++) {
             if (row.cells[i]) {
-                row.cells[i].style.backgroundColor = '';
+                row.cells[i].style.backgroundColor = color ? getLighterColor(color, 0.9) : '';
             }
         }
-        row.cells[4].style.backgroundColor = '';
     } else {
-        for (let i = 1; i <= 3; i++) {
-            if (row.cells[i]) {
-                row.cells[i].style.backgroundColor = '';
-            }
+        for (let i = 1; i < row.cells.length; i++) {
+            row.cells[i].style.backgroundColor = '';
         }
-        row.cells[4].style.backgroundColor = '';
     }
 }
 
@@ -264,17 +290,4 @@ function updateRangsorTable() {
 
     albumAverages.sort((a, b) => b.average - a.average);
 
-    rangsorTableBodyRangsor.innerHTML = '';
-    albumAverages.forEach((album, index) => {
-        const newRow = rangsorTableBodyRangsor.insertRow();
-        const rankCell = newRow.insertCell();
-        const titleCell = newRow.insertCell();
-        const averageCell = newRow.insertCell();
-        rankCell.textContent = index + 1;
-        titleCell.textContent = album.title;
-        averageCell.textContent = album.average.toFixed(2);
-    });
-}
-
-// Kezdetben az adatok betöltése
-loadDataFromFirestore();
+    rangsor
