@@ -40,6 +40,23 @@
             margin-bottom: 10px;
         }
     </style>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script>
+        // Your web app's Firebase configuration
+        const firebaseConfig = {
+          apiKey: "AIzaSyD6ijTUu1KSwbXqfRMeh9vcRXPMqpn-9DA",
+          authDomain: "kerekasztal-rating.firebaseapp.com",
+          projectId: "kerekasztal-rating",
+          storageBucket: "kerekasztal-rating.firebasestorage.app",
+          messagingSenderId: "136944666245",
+          appId: "1:136944666245:web:31596e613d068462f80bec"
+        };
+
+        // Initialize Firebase
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+    </script>
 </head>
 <body>
 
@@ -69,7 +86,7 @@
                     <th>Műveletek</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="ratingTableBody">
             </tbody>
         </table>
         <button class="add-row-button" onclick="addRow()">Új sor hozzáadása</button>
@@ -85,14 +102,14 @@
                     <th>Átlagpontszám</th>
                 </tr>
             </thead>
-            <tbody id="rangsorTableBody">
+            <tbody id="rangsorTableBodyRangsor">
             </tbody>
         </table>
     </div>
 
     <script>
-        const ratingTable = document.getElementById('ratingTable').getElementsByTagName('tbody')[0];
-        const rangsorTableBody = document.getElementById('rangsorTableBody');
+        const ratingTableBody = document.getElementById('ratingTableBody');
+        const rangsorTableBodyRangsor = document.getElementById('rangsorTableBodyRangsor');
         const defaultNames = ['Bálint', 'Szabber', 'Ivanics', 'Rásó', 'Bakos', 'Gaben'];
         const allNames = [...defaultNames, 'Kolos'];
         const nameColors = {
@@ -118,13 +135,48 @@
             }
         }
 
-        function addRow() {
-            const newRow = ratingTable.insertRow();
+        function loadDataFromFirestore() {
+            ratingTableBody.innerHTML = ''; // Táblázat ürítése betöltés előtt
+            db.collection("ratings").get()
+                .then((querySnapshot) => {
+                    querySnapshot.forEach((doc) => {
+                        const data = doc.data();
+                        addRowToTable(data, doc.id);
+                    });
+                    updateRangsorTable();
+                })
+                .catch((error) => {
+                    console.error("Hiba történt az adatok lekérésekor a Firestore-ból: ", error);
+                });
+        }
+
+        function saveDataToFirestore(rowData) {
+            return db.collection("ratings").doc(rowData.album).set(rowData)
+                .then(() => {
+                    console.log("Adatok sikeresen mentve a Firestore-ba!");
+                })
+                .catch((error) => {
+                    console.error("Hiba történt a Firestore-ba mentéskor: ", error);
+                });
+        }
+
+        function deleteDataFromFirestore(albumTitle) {
+            return db.collection("ratings").doc(albumTitle).delete()
+                .then(() => {
+                    console.log(`A(z) ${albumTitle} című album értékelése sikeresen törölve!`);
+                }).catch((error) => {
+                    console.error("Hiba történt a Firestore-ból törléskor: ", error);
+                });
+        }
+
+        function addRowToTable(rowData, docId) {
+            const newRow = ratingTableBody.insertRow();
+            newRow.dataset.docId = docId; // Tároljuk a dokumentum ID-t a sorban
             const cells = [];
             for (let i = 0; i < 12; i++) {
                 cells.push(newRow.insertCell());
             }
-            cells[3].textContent = ''; // Átlag cella
+            cells[3].textContent = rowData.average || ''; // Átlag cella
 
             // Név legördülő menü
             const nameSelect = document.createElement('select');
@@ -139,15 +191,16 @@
             kolosOption.value = 'Kolos';
             kolosOption.textContent = 'Kolos';
             nameSelect.appendChild(kolosOption);
-            nameSelect.value = defaultNames[defaultNameIndex % defaultNames.length];
+            nameSelect.value = rowData.name || defaultNames[defaultNameIndex % defaultNames.length];
             nameSelect.addEventListener('change', function() {
                 applyRowColor(newRow);
-                updateRangsorTable();
+                updateRowData(newRow);
             });
             cells[0].appendChild(nameSelect);
 
-            cells[1].innerHTML = '<input type="text">';
-            cells[2].innerHTML = '<input type="text">';
+            cells[1].innerHTML = `<input type="text" value="${rowData.artist || ''}">`;
+            cells[2].innerHTML = `<input type="text" value="${rowData.album || ''}">`;
+            cells[2].querySelector('input').addEventListener('change', () => updateRowData(newRow));
 
             // Értékelési oszlopok
             for (let i = 0; i < allNames.length; i++) {
@@ -157,24 +210,70 @@
                 input.max = '10';
                 input.step = '0.5';
                 input.classList.add('rating-input');
+                input.value = rowData.ratings ? (rowData.ratings[i] !== undefined ? rowData.ratings[i] : '') : '';
                 input.addEventListener('change', () => {
                     calculateAverage(newRow);
-                    updateRangsorTable();
+                    updateRowData(newRow);
                 });
                 cells[i + 4].appendChild(input);
             }
 
-            cells[11].innerHTML = '<button class="delete-button" onclick="deleteRow(this)">Törlés</button>';
+            const deleteButton = document.createElement('button');
+            deleteButton.classList.add('delete-button');
+            deleteButton.textContent = 'Törlés';
+            deleteButton.addEventListener('click', () => deleteRow(deleteButton));
+            cells[11].appendChild(deleteButton);
 
             applyRowColor(newRow);
             calculateAverage(newRow);
             defaultNameIndex++;
         }
 
+        function addRow() {
+            const newRowData = {
+                name: defaultNames[defaultNameIndex % defaultNames.length],
+                artist: '',
+                album: '',
+                ratings: Array(allNames.length).fill('')
+            };
+            addRowToTable(newRowData);
+            saveDataToFirestore(newRowData);
+            defaultNameIndex++;
+        }
+
         function deleteRow(button) {
             const row = button.parentNode.parentNode;
-            row.remove();
-            updateRangsorTable();
+            const albumTitle = row.cells[2].querySelector('input').value;
+            if (albumTitle) {
+                deleteDataFromFirestore(albumTitle).then(() => {
+                    row.remove();
+                    updateRangsorTable();
+                });
+            } else {
+                row.remove();
+                updateRangsorTable();
+            }
+        }
+
+        function updateRowData(row) {
+            const nameSelect = row.cells[0].querySelector('select');
+            const artistInput = row.cells[1].querySelector('input');
+            const albumInput = row.cells[2].querySelector('input');
+            const ratings = [];
+            for (let i = 4; i < row.cells.length - 1; i++) {
+                const input = row.cells[i].querySelector('input[type="number"]');
+                ratings.push(input ? input.value : '');
+            }
+
+            const rowData = {
+                name: nameSelect.value,
+                artist: artistInput.value,
+                album: albumInput.value,
+                ratings: ratings,
+                average: parseFloat(row.cells[3].textContent) || ''
+            };
+
+            saveDataToFirestore(rowData);
         }
 
         function applyRowColor(row) {
@@ -218,8 +317,8 @@
 
         function updateRangsorTable() {
             const albumRatings = {};
-            for (let i = 0; i < ratingTable.rows.length; i++) {
-                const row = ratingTable.rows[i];
+            for (let i = 0; i < ratingTableBody.rows.length; i++) {
+                const row = ratingTableBody.rows[i];
                 const albumTitleInput = row.cells[2].querySelector('input[type="text"]');
                 const averageCell = row.cells[3];
                 if (albumTitleInput && albumTitleInput.value && averageCell.textContent) {
@@ -239,9 +338,9 @@
 
             albumAverages.sort((a, b) => b.average - a.average);
 
-            rangsorTableBody.innerHTML = '';
+            rangsorTableBodyRangsor.innerHTML = '';
             albumAverages.forEach((album, index) => {
-                const newRow = rangsorTableBody.insertRow();
+                const newRow = rangsorTableBodyRangsor.insertRow();
                 const rankCell = newRow.insertCell();
                 const titleCell = newRow.insertCell();
                 const averageCell = newRow.insertCell();
@@ -251,8 +350,9 @@
             });
         }
 
-        // Kezdetben a 'rating' fül legyen aktív
+        // Kezdetben a 'rating' fül legyen aktív és az adatok betöltése
         openTab('rating');
+        loadDataFromFirestore();
     </script>
 
 </body>
