@@ -42,21 +42,7 @@
     </style>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-    <script>
-        // Your web app's Firebase configuration
-        const firebaseConfig = {
-          apiKey: "AIzaSyD6ijTUu1KSwbXqfRMeh9vcRXPMqpn-9DA",
-          authDomain: "kerekasztal-rating.firebaseapp.com",
-          projectId: "kerekasztal-rating",
-          storageBucket: "kerekasztal-rating.firebasestorage.app",
-          messagingSenderId: "136944666245",
-          appId: "1:136944666245:web:31596e613d068462f80bec"
-        };
-
-        // Initialize Firebase
-        const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
-    </script>
+    <script type="module" src="firebase.js"></script>
 </head>
 <body>
 
@@ -107,7 +93,9 @@
         </table>
     </div>
 
-    <script>
+    <script type="module">
+        import { db } from './firebase.js'; // Importáld a db objektumot a firebase.js-ből
+
         const ratingTableBody = document.getElementById('ratingTableBody');
         const rangsorTableBodyRangsor = document.getElementById('rangsorTableBodyRangsor');
         const defaultNames = ['Bálint', 'Szabber', 'Ivanics', 'Rásó', 'Bakos', 'Gaben'];
@@ -350,8 +338,7 @@
             });
         }
 
-        // Kezdetben a 'rating' fül legyen aktív és az adatok betöltése
-        openTab('rating');
+        // Kezdetben az adatok betöltése
         loadDataFromFirestore();
     </script>
 
