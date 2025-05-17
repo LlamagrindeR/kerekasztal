@@ -94,7 +94,7 @@
     </div>
 
     <script type="module">
-        import { db } from './firebase.js'; // Importáld a db objektumot a firebase.js-ből
+        import { db } from './firebase.js';
 
         const ratingTableBody = document.getElementById('ratingTableBody');
         const rangsorTableBodyRangsor = document.getElementById('rangsorTableBodyRangsor');
@@ -111,7 +111,7 @@
         };
         let defaultNameIndex = 0;
 
-        function openTab(tabId) {
+        window.openTab = function(tabId) { // Hozzárendeljük a window objektumhoz
             console.log('openTab függvény meghívva ezzel az ID-vel:', tabId);
             const tabContents = document.querySelectorAll('.tab-content');
             const tabButtons = document.querySelectorAll('.tab-button');
@@ -141,10 +141,54 @@
                 console.log('Rangsor fülre váltás - updateRangsorTable meghívása');
                 updateRangsorTable();
             }
-        }
+        };
+
+        window.addRow = function() { // Hozzárendeljük a window objektumhoz
+            console.log('addRow függvény meghívva');
+            const newRowData = {
+                name: defaultNames[defaultNameIndex % defaultNames.length],
+                artist: '',
+                album: '',
+                ratings: Array(allNames.length).fill('')
+            };
+            console.log('Létrehozott új sor adat:', newRowData);
+            db.collection("ratings").add(newRowData) // Firestore automatikusan generál egy ID-t
+                .then((docRef) => {
+                    console.log("Firestore dokumentum ID: ", docRef.id);
+                    addRowToTable(newRowData, docRef.id);
+                })
+                .catch((error) => {
+                    console.error("Hiba történt a Firestore-ba mentéskor: ", error);
+                });
+            defaultNameIndex++;
+            console.log('defaultNameIndex növelve:', defaultNameIndex);
+        };
+
+        window.deleteRow = function(button) { // Hozzárendeljük a window objektumhoz
+            console.log('deleteRow függvény meghívva ezzel a gombbal:', button);
+            const row = button.parentNode.parentNode;
+            console.log('Törlendő sor:', row);
+            const docId = row.dataset.docId;
+            console.log('Törlendő dokumentum ID:', docId);
+            if (docId) {
+                db.collection("ratings").doc(docId).delete()
+                    .then(() => {
+                        console.log(`A(z) ${docId} ID-jű értékelés sikeresen törölve!`);
+                        row.remove();
+                        updateRangsorTable();
+                    })
+                    .catch((error) => {
+                        console.error("Hiba történt a Firestore-ból törléskor: ", error);
+                    });
+            } else {
+                console.log('A sorhoz nem tartozik docId, csak a táblázatból távolítjuk el.');
+                row.remove();
+                updateRangsorTable();
+            }
+        };
 
         function loadDataFromFirestore() {
-            ratingTableBody.innerHTML = ''; // Táblázat ürítése betöltés előtt
+            ratingTableBody.innerHTML = '';
             db.collection("ratings").get()
                 .then((querySnapshot) => {
                     querySnapshot.forEach((doc) => {
@@ -168,25 +212,15 @@
                 });
         }
 
-        function deleteDataFromFirestore(docId) {
-            return db.collection("ratings").doc(docId).delete()
-                .then(() => {
-                    console.log(`A(z) ${docId} ID-jű értékelés sikeresen törölve!`);
-                }).catch((error) => {
-                    console.error("Hiba történt a Firestore-ból törléskor: ", error);
-                });
-        }
-
         function addRowToTable(rowData, docId) {
             const newRow = ratingTableBody.insertRow();
-            newRow.dataset.docId = docId; // Tároljuk a dokumentum ID-t a sorban
+            newRow.dataset.docId = docId;
             const cells = [];
             for (let i = 0; i < 12; i++) {
                 cells.push(newRow.insertCell());
             }
-            cells[3].textContent = rowData.average || ''; // Átlag cella
+            cells[3].textContent = rowData.average || '';
 
-            // Név legördülő menü
             const nameSelect = document.createElement('select');
             nameSelect.classList.add('name-select');
             defaultNames.forEach(name => {
@@ -210,7 +244,6 @@
             cells[2].innerHTML = `<input type="text" value="${rowData.album || ''}">`;
             cells[2].querySelector('input').addEventListener('change', () => updateRowData(newRow, docId));
 
-            // Értékelési oszlopok
             for (let i = 0; i < allNames.length; i++) {
                 const input = document.createElement('input');
                 input.type = 'number';
@@ -229,56 +262,12 @@
             const deleteButton = document.createElement('button');
             deleteButton.classList.add('delete-button');
             deleteButton.textContent = 'Törlés';
-            deleteButton.addEventListener('click', () => deleteRow(deleteButton));
+            deleteButton.addEventListener('click', () => window.deleteRow(deleteButton)); // Itt is window.deleteRow-ra hivatkozunk
             cells[11].appendChild(deleteButton);
 
             applyRowColor(newRow);
             calculateAverage(newRow);
             defaultNameIndex++;
-        }
-
-        function addRow() {
-            console.log('addRow függvény meghívva');
-            const newRowData = {
-                name: defaultNames[defaultNameIndex % defaultNames.length],
-                artist: '',
-                album: '',
-                ratings: Array(allNames.length).fill('')
-            };
-            console.log('Létrehozott új sor adat:', newRowData);
-            db.collection("ratings").add(newRowData) // Firestore automatikusan generál egy ID-t
-                .then((docRef) => {
-                    console.log("Firestore dokumentum ID: ", docRef.id);
-                    addRowToTable(newRowData, docRef.id);
-                })
-                .catch((error) => {
-                    console.error("Hiba történt a Firestore-ba mentéskor: ", error);
-                });
-            defaultNameIndex++;
-            console.log('defaultNameIndex növelve:', defaultNameIndex);
-        }
-
-        function deleteRow(button) {
-            console.log('deleteRow függvény meghívva ezzel a gombbal:', button);
-            const row = button.parentNode.parentNode;
-            console.log('Törlendő sor:', row);
-            const docId = row.dataset.docId;
-            console.log('Törlendő dokumentum ID:', docId);
-            if (docId) {
-                db.collection("ratings").doc(docId).delete()
-                    .then(() => {
-                        console.log(`A(z) ${docId} ID-jű értékelés sikeresen törölve!`);
-                        row.remove();
-                        updateRangsorTable();
-                    })
-                    .catch((error) => {
-                        console.error("Hiba történt a Firestore-ból törléskor: ", error);
-                    });
-            } else {
-                console.log('A sorhoz nem tartozik docId, csak a táblázatból távolítjuk el.');
-                row.remove();
-                updateRangsorTable();
-            }
         }
 
         function updateRowData(row, docId) {
